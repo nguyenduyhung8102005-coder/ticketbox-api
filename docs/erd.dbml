@@ -1,0 +1,142 @@
+// ERD của Ticketbox. Dán nội dung file này vào https://dbdiagram.io để xem sơ đồ.
+// Nguồn sự thật vẫn là các file Flyway trong src/main/resources/db/migration.
+
+Project ticketbox {
+  database_type: 'PostgreSQL'
+  Note: 'Hệ thống đặt vé xem phim và sự kiện'
+}
+
+Table users {
+  id bigserial [pk]
+  email varchar(255) [not null, note: 'unique theo lower(email)']
+  phone varchar(20) [unique]
+  password_hash varchar(255) [not null]
+  full_name varchar(150) [not null]
+  role varchar(20) [not null, default: 'CUSTOMER']
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table shows {
+  id bigserial [pk]
+  type varchar(20) [not null, note: 'MOVIE, CONCERT, THEATER, SPORT, OTHER']
+  title varchar(255) [not null]
+  slug varchar(255) [unique, not null]
+  description text
+  duration_min int
+  age_rating varchar(5)
+  poster_url varchar(500)
+  trailer_url varchar(500)
+  release_date date
+  status varchar(20) [not null]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table venues {
+  id bigserial [pk]
+  name varchar(255) [not null]
+  city varchar(100) [not null]
+  address varchar(500) [not null]
+}
+
+Table auditoriums {
+  id bigserial [pk]
+  venue_id bigint [not null, ref: > venues.id]
+  name varchar(100) [not null]
+  indexes { (venue_id, name) [unique] }
+}
+
+Table seats {
+  id bigserial [pk]
+  auditorium_id bigint [not null, ref: > auditoriums.id]
+  row_label varchar(5) [not null]
+  seat_number int [not null]
+  seat_type varchar(20) [not null]
+  active boolean [not null]
+  indexes { (auditorium_id, row_label, seat_number) [unique] }
+}
+
+Table showtimes {
+  id bigserial [pk]
+  show_id bigint [not null, ref: > shows.id]
+  auditorium_id bigint [not null, ref: > auditoriums.id]
+  start_time timestamptz [not null]
+  end_time timestamptz [not null]
+  status varchar(20) [not null]
+  sale_open_at timestamptz
+  Note: 'EXCLUDE: không trùng giờ trong cùng phòng (trừ suất CANCELLED)'
+}
+
+Table ticket_prices {
+  showtime_id bigint [ref: > showtimes.id]
+  seat_type varchar(20)
+  price numeric(12,0) [not null]
+  indexes { (showtime_id, seat_type) [pk] }
+}
+
+Table showtime_seats {
+  id bigserial [pk]
+  showtime_id bigint [not null, ref: > showtimes.id]
+  seat_id bigint [not null, ref: > seats.id]
+  status varchar(20) [not null, note: 'AVAILABLE, HELD, SOLD, BLOCKED']
+  booking_id bigint [ref: > bookings.id]
+  held_until timestamptz
+  version bigint [not null]
+  indexes { (showtime_id, seat_id) [unique] }
+  Note: 'Trái tim hệ thống: 1 dòng cho mỗi cặp (suất, ghế)'
+}
+
+Table bookings {
+  id bigserial [pk]
+  booking_code varchar(20) [unique, not null]
+  user_id bigint [ref: > users.id, note: 'NULL nếu khách vãng lai']
+  customer_email varchar(255) [not null]
+  customer_phone varchar(20)
+  showtime_id bigint [not null, ref: > showtimes.id]
+  status varchar(20) [not null]
+  total_amount numeric(12,0) [not null]
+  expires_at timestamptz [not null]
+  idempotency_key varchar(64) [unique]
+  version bigint [not null]
+}
+
+Table booking_items {
+  id bigserial [pk]
+  booking_id bigint [not null, ref: > bookings.id]
+  showtime_seat_id bigint [not null, ref: > showtime_seats.id]
+  price numeric(12,0) [not null]
+  ticket_code varchar(128) [unique]
+}
+
+Table payments {
+  id bigserial [pk]
+  booking_id bigint [not null, ref: > bookings.id]
+  provider varchar(20) [not null]
+  provider_txn_id varchar(100)
+  amount numeric(12,0) [not null]
+  status varchar(20) [not null]
+  raw_response jsonb
+  indexes { (provider, provider_txn_id) [unique] }
+}
+
+Table outbox_events {
+  id bigserial [pk]
+  aggregate_type varchar(50) [not null]
+  aggregate_id bigint [not null]
+  event_type varchar(50) [not null]
+  payload jsonb [not null]
+  status varchar(20) [not null]
+  attempts int [not null]
+  last_error text
+  created_at timestamptz
+  published_at timestamptz
+}
+
+Table processed_events {
+  event_id bigint
+  consumer varchar(100)
+  processed_at timestamptz
+  indexes { (event_id, consumer) [pk] }
+}

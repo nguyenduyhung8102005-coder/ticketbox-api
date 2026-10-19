@@ -1,0 +1,16 @@
+# Dùng cho integration test. Kết nối PostgreSQL/Redis do Testcontainers cung cấp
+# qua @ServiceConnection, nên không khai báo datasource ở đây.
+
+spring:
+  jpa:
+    show-sql: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.ticketbox: DEBUG
+    org.testcontainers: INFO

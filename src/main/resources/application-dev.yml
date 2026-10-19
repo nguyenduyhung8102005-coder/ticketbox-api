@@ -1,0 +1,32 @@
+# Môi trường phát triển local. Giá trị mặc định khớp với .env.example và docker-compose.yml.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${POSTGRES_DB:ticketbox}
+    username: ${POSTGRES_USER:ticketbox}
+    password: ${POSTGRES_PASSWORD:ticketbox_dev}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis_dev}
+      timeout: 2s
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.ticketbox: DEBUG
+    org.hibernate.SQL: DEBUG                                    # in câu SQL
+    org.hibernate.orm.jdbc.bind: TRACE                          # in giá trị tham số
+
+server:
+  port: 8081

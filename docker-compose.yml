@@ -1,0 +1,72 @@
+# Hạ tầng phát triển local.
+#   Chỉ chạy hạ tầng (mặc định):      docker compose up -d
+#   Chạy cả ứng dụng trong Docker:     docker compose --profile app up -d --build
+# Biến môi trường đọc từ file .env (copy từ .env.example).
+
+name: ticketbox
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ticketbox-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ticketbox}
+      POSTGRES_USER: ${POSTGRES_USER:-ticketbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ticketbox_dev}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"   # chỉ mở cho máy local, không mở ra mạng ngoài
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ticketbox-redis
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-redis_dev}", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Kafka sẽ được thêm ở Giai đoạn 3–4.
+
+  app:
+    profiles: ["app"]
+    build: .
+    container_name: ticketbox-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-ticketbox}
+      POSTGRES_USER: ${POSTGRES_USER:-ticketbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ticketbox_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev}
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
+  redis-data:

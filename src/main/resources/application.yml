@@ -1,0 +1,82 @@
+# Cấu hình dùng chung cho mọi môi trường.
+# Cấu hình riêng nằm ở application-{dev,test,prod}.yml.
+
+spring:
+  application:
+    name: ticketbox-api
+  profiles:
+    default: dev
+
+  # Giai đoạn 0 chưa có bảng người dùng: tắt user mặc định Spring Security tự sinh.
+  # Giai đoạn 1 sẽ thay bằng UserDetailsService đọc từ DB.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  jpa:
+    open-in-view: false            # tránh lazy-load trong controller, giữ transaction ở tầng service
+    hibernate:
+      ddl-auto: validate           # schema do Flyway quản lý, Hibernate chỉ kiểm tra
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+  # Bật ở Giai đoạn 4 để đo khác biệt hiệu năng trước/sau.
+  threads:
+    virtual:
+      enabled: false
+
+server:
+  port: 8081
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Hệ thống đặt vé xem phim và sự kiện
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:5173
+
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"
