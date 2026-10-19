@@ -14,3 +14,10 @@ logging:
   level:
     com.ticketbox: DEBUG
     org.testcontainers: INFO
+
+app:
+  jwt:
+    secret: test-only-secret-0123456789abcdef-0123456789abcdef
+  booking:
+    expiry-job:
+      enabled: false   # test gọi trực tiếp BookingExpiryService để kiểm soát thời điểm chạy

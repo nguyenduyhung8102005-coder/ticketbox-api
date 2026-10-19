@@ -3,15 +3,21 @@ package com.ticketbox.common.exception;
 import com.ticketbox.common.api.ApiError;
 import com.ticketbox.common.api.ApiError.FieldViolation;
 import com.ticketbox.common.api.ApiResponse;
+import com.ticketbox.common.persistence.ConstraintViolations;
 import com.ticketbox.common.web.RequestIdFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,7 +25,9 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Xử lý lỗi tập trung: mọi exception đều được chuyển thành {@link ApiResponse} cùng một định dạng.
@@ -29,6 +37,16 @@ import java.util.List;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** Constraint DB -> mã lỗi nghiệp vụ, dùng khi request đồng thời lọt qua bước kiểm tra ở tầng service. */
+    private static final Map<String, ErrorCode> CONSTRAINT_ERRORS = new LinkedHashMap<>();
+
+    static {
+        CONSTRAINT_ERRORS.put(ConstraintViolations.SHOWTIME_OVERLAP, ErrorCode.SHOWTIME_OVERLAP);
+        CONSTRAINT_ERRORS.put(ConstraintViolations.USER_EMAIL, ErrorCode.EMAIL_ALREADY_EXISTS);
+        CONSTRAINT_ERRORS.put(ConstraintViolations.USER_PHONE, ErrorCode.PHONE_ALREADY_EXISTS);
+        CONSTRAINT_ERRORS.put(ConstraintViolations.SHOW_SLUG, ErrorCode.SLUG_ALREADY_EXISTS);
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
@@ -60,7 +78,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             HttpMessageNotReadableException.class,
             MethodArgumentTypeMismatchException.class,
-            MissingServletRequestParameterException.class
+            MissingServletRequestParameterException.class,
+            MissingRequestHeaderException.class,
+            PropertyReferenceException.class            // sort theo thuộc tính không tồn tại: ?sort=abc
     })
     public ResponseEntity<ApiResponse<Void>> handleMalformed(Exception ex) {
         log.debug("Malformed request: {}", ex.getMessage());
@@ -81,15 +101,39 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
         log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
-        return build(ErrorCode.DATA_CONFLICT, ErrorCode.DATA_CONFLICT.defaultMessage(), List.of());
+        ErrorCode code = CONSTRAINT_ERRORS.entrySet().stream()
+                .filter(e -> ConstraintViolations.isViolationOf(ex, e.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(ErrorCode.DATA_CONFLICT);
+        return build(code, code.defaultMessage(), List.of());
     }
 
     /** Xung đột phiên bản (@Version) khi hai request cùng sửa một bản ghi. */
+    /** Deadlock / hết thời gian chờ khóa dòng: hệ thống đang tranh chấp, client nên thử lại. */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePessimisticLock(PessimisticLockingFailureException ex) {
+        log.warn("Lock conflict: {}", ex.getMessage());
+        return build(ErrorCode.CONCURRENT_MODIFICATION,
+                ErrorCode.CONCURRENT_MODIFICATION.defaultMessage(), List.of());
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(OptimisticLockingFailureException ex) {
         log.info("Optimistic lock conflict: {}", ex.getMessage());
         return build(ErrorCode.CONCURRENT_MODIFICATION,
                 ErrorCode.CONCURRENT_MODIFICATION.defaultMessage(), List.of());
+    }
+
+    /** @PreAuthorize từ chối: ném ra trong controller nên không qua accessDeniedHandler của filter chain. */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        return build(ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN.defaultMessage(), List.of());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthentication(AuthenticationException ex) {
+        return build(ErrorCode.UNAUTHORIZED, ErrorCode.UNAUTHORIZED.defaultMessage(), List.of());
     }
 
     @ExceptionHandler(Exception.class)

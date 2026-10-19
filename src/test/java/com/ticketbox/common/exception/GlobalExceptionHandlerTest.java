@@ -1,5 +1,7 @@
 package com.ticketbox.common.exception;
 
+import com.ticketbox.auth.security.JwtService;
+import com.ticketbox.auth.security.TokenBlacklistService;
 import com.ticketbox.common.config.SecurityConfig;
 import com.ticketbox.common.web.RequestIdFilter;
 import jakarta.validation.Valid;
@@ -10,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,13 +34,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Kiểm tra định dạng lỗi thống nhất. Chỉ khởi động tầng Web (không DB, không Docker) nên chạy rất nhanh.
+ * Từ Giai đoạn 1, /api/** yêu cầu đăng nhập nên các test mặc định chạy với một user giả (@WithMockUser).
  */
+@WithMockUser
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.FakeController.class)
 @Import({SecurityConfig.class, GlobalExceptionHandlerTest.FakeController.class})   // @WebMvcTest không tự nạp @Configuration, cần import để test cả lớp bảo mật
 class GlobalExceptionHandlerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // SecurityConfig cần 2 bean này để dựng JwtAuthenticationFilter; test không gửi Bearer token nên chỉ cần mock
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private TokenBlacklistService tokenBlacklistService;
 
     @Test
     void businessException_returnsMappedStatusAndCode() throws Exception {
@@ -98,10 +112,34 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void adminArea_isLockedWithJson401() throws Exception {
+    @WithAnonymousUser
+    void adminArea_withoutLogin_returnsJson401() throws Exception {
         mockMvc.perform(get("/api/v1/admin/shows"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void adminArea_asCustomer_returnsJson403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shows"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void protectedApi_withoutLogin_returnsJson401() throws Exception {
+        mockMvc.perform(get("/api/test/seat-taken"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void dataIntegrityViolation_onKnownConstraint_isMappedToBusinessCode() throws Exception {
+        mockMvc.perform(get("/api/test/overlap"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SHOWTIME_OVERLAP"));
     }
 
     // ----- Controller giả lập chỉ dùng trong test -----
@@ -129,6 +167,13 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom")
         void boom() {
             throw new IllegalStateException("secret-db-password leaked");
+        }
+
+        @GetMapping("/overlap")
+        void overlap() {
+            throw new org.springframework.dao.DataIntegrityViolationException("insert failed",
+                    new RuntimeException("ERROR: conflicting key value violates exclusion constraint "
+                            + "\"ex_showtimes_no_overlap\""));
         }
     }
 }

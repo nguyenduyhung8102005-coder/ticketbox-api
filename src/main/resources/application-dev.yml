@@ -30,3 +30,12 @@ logging:
 
 server:
   port: 8081
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-khong-dung-cho-production-0123456789}
+  # Tài khoản admin tạo sẵn khi khởi động để thử các API /api/v1/admin/**
+  bootstrap:
+    admin:
+      email: ${ADMIN_EMAIL:admin@ticketbox.local}
+      password: ${ADMIN_PASSWORD:Admin@123456}

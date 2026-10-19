@@ -1,6 +1,9 @@
 package com.ticketbox.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ticketbox.auth.security.JwtAuthenticationFilter;
+import com.ticketbox.auth.security.JwtService;
+import com.ticketbox.auth.security.TokenBlacklistService;
 import com.ticketbox.common.api.ApiError;
 import com.ticketbox.common.api.ApiResponse;
 import com.ticketbox.common.exception.ErrorCode;
@@ -10,6 +13,7 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -17,7 +21,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -26,10 +33,10 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Cấu hình bảo mật nền tảng (Giai đoạn 0).
+ * Cấu hình bảo mật.
  * <ul>
- *   <li>Stateless: không dùng session, chuẩn bị cho JWT ở Giai đoạn 1.</li>
- *   <li>API public tạm thời mở; khu vực /api/v1/admin/** khóa hoàn toàn cho tới khi có JWT.</li>
+ *   <li>Stateless + JWT: mỗi request tự mang access token, server không giữ session.</li>
+ *   <li>Phân quyền 2 lớp: theo URL ở đây (/api/v1/admin/** chỉ ADMIN) và @PreAuthorize trên controller.</li>
  *   <li>Lỗi 401/403 trả JSON cùng định dạng {@link ApiResponse} thay vì trang HTML mặc định.</li>
  * </ul>
  */
@@ -46,8 +53,23 @@ public class SecurityConfig {
             "/swagger-ui.html"
     };
 
+    private static final String[] PUBLIC_AUTH_ENDPOINTS = {
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh"
+    };
+
+    private static final String[] PUBLIC_CATALOG_ENDPOINTS = {
+            "/api/v1/shows",
+            "/api/v1/shows/**",
+            "/api/v1/showtimes/*/seats"
+    };
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   ObjectMapper objectMapper,
+                                                   JwtService jwtService,
+                                                   TokenBlacklistService tokenBlacklistService) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)          // API stateless dùng token, không dùng cookie session
                 .cors(Customizer.withDefaults())
@@ -55,11 +77,14 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
+                .addFilterBefore(new JwtAuthenticationFilter(jwtService, tokenBlacklistService),
+                        UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        // TODO Giai đoạn 1: thay bằng .hasRole("ADMIN") sau khi có JWT filter
-                        .requestMatchers("/api/v1/admin/**").denyAll()
-                        .requestMatchers("/api/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_CATALOG_ENDPOINTS).permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) ->
@@ -68,6 +93,12 @@ public class SecurityConfig {
                                 writeError(res, objectMapper, ErrorCode.FORBIDDEN)));
 
         return http.build();
+    }
+
+    /** BCrypt strength mặc định 10: khoảng 50–100 ms mỗi lần băm, đủ chậm để chống brute-force. */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
