@@ -1,7 +1,9 @@
 package com.ticketbox.booking.repository;
 
 import com.ticketbox.booking.domain.ShowtimeSeat;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -63,6 +65,33 @@ public interface ShowtimeSeatRepository extends JpaRepository<ShowtimeSeat, Long
                and s.status = com.ticketbox.booking.domain.SeatStatus.HELD
             """)
     int releaseHeldSeatsOfBookings(@Param("bookingIds") Collection<Long> bookingIds);
+
+    /**
+     * Khóa các dòng ghế (SELECT ... FOR UPDATE) theo thứ tự id cố định, dùng khi xác nhận thanh toán:
+     * kiểm tra trạng thái rồi mới bán, không ai chen vào giữa. Thứ tự cố định giảm nguy cơ deadlock.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from ShowtimeSeat s where s.id in :ids order by s.id")
+    List<ShowtimeSeat> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
+
+    /**
+     * Bán ghế cho đơn đã thanh toán: HELD (của chính đơn này) hoặc AVAILABLE (đơn đã hết hạn, ghế được trả
+     * nhưng chưa ai lấy) → SOLD. Gọi sau khi đã khóa và kiểm tra bằng {@link #findAllByIdForUpdate}.
+     *
+     * @return số ghế đã bán
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update ShowtimeSeat s
+               set s.status = com.ticketbox.booking.domain.SeatStatus.SOLD,
+                   s.bookingId = :bookingId,
+                   s.heldUntil = null,
+                   s.version = s.version + 1
+             where s.id in :seatIds
+               and (s.status = com.ticketbox.booking.domain.SeatStatus.AVAILABLE
+                    or (s.status = com.ticketbox.booking.domain.SeatStatus.HELD and s.bookingId = :bookingId))
+            """)
+    int sellSeats(@Param("seatIds") Collection<Long> seatIds, @Param("bookingId") Long bookingId);
 
     /** Thông tin ghế (nhãn, loại) của các ghế được yêu cầu, chỉ lấy ghế thuộc đúng suất chiếu. */
     @Query("""

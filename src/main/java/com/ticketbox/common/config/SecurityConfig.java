@@ -65,6 +65,15 @@ public class SecurityConfig {
             "/api/v1/showtimes/*/seats"
     };
 
+    /**
+     * VNPay gọi IPN server-to-server và chuyển hướng trình duyệt về Return URL: không có JWT.
+     * Bảo vệ bằng chữ ký HMAC-SHA512 kiểm tra trong PaymentService, không phải bằng đăng nhập.
+     */
+    private static final String[] PAYMENT_CALLBACK_ENDPOINTS = {
+            "/api/v1/payments/vnpay/ipn",
+            "/api/v1/payments/vnpay/return"
+    };
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    ObjectMapper objectMapper,
@@ -83,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_CATALOG_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.GET, PAYMENT_CALLBACK_ENDPOINTS).permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())

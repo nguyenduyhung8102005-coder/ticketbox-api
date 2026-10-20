@@ -55,7 +55,11 @@ public enum ErrorCode {
 
     // ===== Payment (Giai đoạn 3) =====
     PAYMENT_SIGNATURE_INVALID(HttpStatus.BAD_REQUEST, "Chữ ký thanh toán không hợp lệ"),
-    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "Số tiền thanh toán không khớp với đơn hàng");
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "Số tiền thanh toán không khớp với đơn hàng"),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy giao dịch thanh toán"),
+    BOOKING_NOT_PAYABLE(HttpStatus.CONFLICT, "Đơn đặt vé không còn ở trạng thái chờ thanh toán"),
+    PAYMENT_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Đơn đã vượt quá số lần tạo thanh toán cho phép"),
+    PAYMENT_GATEWAY_ERROR(HttpStatus.BAD_GATEWAY, "Cổng thanh toán đang gặp sự cố, vui lòng thử lại sau");
 
     private final HttpStatus status;
     private final String defaultMessage;

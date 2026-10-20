@@ -52,6 +52,9 @@ public class Booking extends BaseEntity {
     @Column(name = "idempotency_key")
     private String idempotencyKey;
 
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -93,6 +96,41 @@ public class Booking extends BaseEntity {
     public void expire() {
         requirePending();
         this.status = BookingStatus.EXPIRED;
+    }
+
+    /**
+     * Đã thanh toán. Ngoài trường hợp bình thường (PENDING_PAYMENT), cho phép xác nhận đơn đã EXPIRED/CANCELLED:
+     * khách trả tiền đúng lúc hết hạn giữ chỗ mà ghế vẫn còn trống thì vẫn giao vé (xem BookingPaymentService).
+     */
+    public void confirm(Instant at) {
+        if (!isAwaitingOrLostHold()) {
+            throw new IllegalStateException("Không thể xác nhận đơn " + bookingCode + " ở trạng thái " + status);
+        }
+        this.status = BookingStatus.CONFIRMED;
+        this.confirmedAt = at;
+    }
+
+    /** Đã thu tiền nhưng không giao được vé: chờ hoàn tiền. */
+    public void markRefundPending() {
+        if (!isAwaitingOrLostHold()) {
+            throw new IllegalStateException("Không thể chuyển đơn " + bookingCode + " từ " + status
+                    + " sang REFUND_PENDING");
+        }
+        this.status = BookingStatus.REFUND_PENDING;
+    }
+
+    public void markRefunded() {
+        if (status != BookingStatus.REFUND_PENDING) {
+            throw new IllegalStateException("Đơn " + bookingCode + " không ở trạng thái REFUND_PENDING");
+        }
+        this.status = BookingStatus.REFUNDED;
+    }
+
+    /** Chờ thanh toán, hoặc đã mất giữ chỗ (hết hạn/hủy) nhưng chưa từng được thanh toán. */
+    private boolean isAwaitingOrLostHold() {
+        return status == BookingStatus.PENDING_PAYMENT
+                || status == BookingStatus.EXPIRED
+                || status == BookingStatus.CANCELLED;
     }
 
     public List<Long> showtimeSeatIds() {

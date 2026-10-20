@@ -99,6 +99,7 @@ Table bookings {
   total_amount numeric(12,0) [not null]
   expires_at timestamptz [not null]
   idempotency_key varchar(64) [unique]
+  confirmed_at timestamptz [note: 'V5']
   version bigint [not null]
 }
 
@@ -107,18 +108,41 @@ Table booking_items {
   booking_id bigint [not null, ref: > bookings.id]
   showtime_seat_id bigint [not null, ref: > showtime_seats.id]
   price numeric(12,0) [not null]
-  ticket_code varchar(128) [unique]
+  ticket_code varchar(128) [unique, note: 'Mã vé có chữ ký HMAC (nội dung QR), sinh khi CONFIRMED']
 }
 
 Table payments {
   id bigserial [pk]
   booking_id bigint [not null, ref: > bookings.id]
   provider varchar(20) [not null]
-  provider_txn_id varchar(100)
+  provider_txn_id varchar(100) [not null, note: 'vnp_TxnRef do hệ thống sinh']
+  provider_transaction_no varchar(50) [note: 'vnp_TransactionNo của VNPay, dùng để hoàn tiền']
+  bank_code varchar(20)
+  response_code varchar(10)
   amount numeric(12,0) [not null]
-  status varchar(20) [not null]
+  status varchar(20) [not null, note: 'INITIATED | SUCCESS | FAILED | REFUND_PENDING | REFUNDED']
   raw_response jsonb
-  indexes { (provider, provider_txn_id) [unique] }
+  paid_at timestamptz
+  refund_reason varchar(30)
+  refund_attempts int [not null]
+  refunded_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+  indexes {
+    (provider, provider_txn_id) [unique]
+    booking_id [unique, note: 'partial: WHERE status = SUCCESS (tối đa 1 giao dịch thành công / đơn)']
+  }
+}
+
+Table payment_logs {
+  id bigserial [pk]
+  payment_id bigint [ref: > payments.id]
+  provider varchar(20) [not null]
+  kind varchar(20) [not null, note: 'IPN | RETURN | QUERY | REFUND']
+  txn_ref varchar(100)
+  payload jsonb [not null, note: 'Nguyên văn request/response']
+  result varchar(100)
+  created_at timestamptz
 }
 
 Table outbox_events {
@@ -132,6 +156,7 @@ Table outbox_events {
   last_error text
   created_at timestamptz
   published_at timestamptz
+  next_attempt_at timestamptz [not null, note: 'V5: backoff khi gửi Kafka lỗi']
 }
 
 Table processed_events {

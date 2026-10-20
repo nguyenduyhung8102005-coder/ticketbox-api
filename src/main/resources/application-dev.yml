@@ -17,6 +17,14 @@ spring:
       password: ${REDIS_PASSWORD:redis_dev}
       timeout: 2s
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+  # Mailpit (docker compose) nhận mọi email, xem tại http://localhost:8025 - không gửi ra ngoài
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+
 management:
   endpoint:
     health:
@@ -27,6 +35,7 @@ logging:
     com.ticketbox: DEBUG
     org.hibernate.SQL: DEBUG                                    # in câu SQL
     org.hibernate.orm.jdbc.bind: TRACE                          # in giá trị tham số
+    org.apache.kafka: WARN
 
 server:
   port: 8081
@@ -39,3 +48,11 @@ app:
     admin:
       email: ${ADMIN_EMAIL:admin@ticketbox.local}
       password: ${ADMIN_PASSWORD:Admin@123456}
+  ticket:
+    signing-secret: ${TICKET_SIGNING_SECRET:dev-only-ticket-secret-khong-dung-cho-production}
+  payment:
+    vnpay:
+      # Đăng ký sandbox tại https://sandbox.vnpayment.vn/devreg/ để nhận 2 giá trị này qua email
+      tmn-code: ${VNPAY_TMN_CODE:CHANGE_ME}
+      hash-secret: ${VNPAY_HASH_SECRET:CHANGE_ME}
+      return-url: ${VNPAY_RETURN_URL:http://localhost:8081/api/v1/payments/vnpay/return}

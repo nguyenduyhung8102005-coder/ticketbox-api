@@ -19,6 +19,18 @@ spring:
   flyway:
     clean-disabled: true
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
 management:
   endpoint:
     health:
@@ -40,6 +52,20 @@ app:
     admin:
       email: ${ADMIN_EMAIL:}
       password: ${ADMIN_PASSWORD:}
+  ticket:
+    signing-secret: ${TICKET_SIGNING_SECRET}
+  messaging:
+    topic-replicas: ${KAFKA_TOPIC_REPLICAS:3}
+  mail:
+    from: ${MAIL_FROM}
+  payment:
+    vnpay:
+      tmn-code: ${VNPAY_TMN_CODE}
+      hash-secret: ${VNPAY_HASH_SECRET}
+      return-url: ${VNPAY_RETURN_URL}
+      pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      api-url: ${VNPAY_API_URL:https://sandbox.vnpayment.vn/merchant_webapi/api/transaction}
+      server-ip: ${SERVER_PUBLIC_IP:127.0.0.1}
 
 logging:
   level:

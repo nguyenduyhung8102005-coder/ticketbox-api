@@ -34,6 +34,31 @@ spring:
       pageable:
         max-page-size: 100       # chặn client xin ?size=1000000
 
+  # Kafka: outbox → topic ticketbox.booking-events → consumer (notification, payment-refund)
+  kafka:
+    producer:
+      acks: all                  # chỉ coi là gửi xong khi mọi replica đã ghi
+      properties:
+        enable.idempotence: true
+        max.block.ms: 5000       # Kafka sập: send() lỗi sau 5s thay vì treo 60s (relay đang giữ transaction)
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+    consumer:
+      auto-offset-reset: earliest
+    listener:
+      ack-mode: record           # commit offset sau từng tin nhắn: giảm số tin nhắn bị giao lại khi consumer chết
+
+  mail:
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  thymeleaf:
+    # Thymeleaf chỉ dùng render email, không render trang web
+    check-template-location: false
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -95,6 +120,47 @@ app:
       enabled: true
       interval: PT30S
       batch-size: 100
+  # ----- Giai đoạn 3 -----
+  messaging:
+    booking-events-topic: ticketbox.booking-events
+    topic-partitions: 3
+    topic-replicas: 1
+    outbox:
+      relay-enabled: true
+      relay-interval: PT1S
+      batch-size: 100
+      max-attempts: 10
+      initial-backoff: PT2S
+      max-backoff: PT10M
+      retention: P7D
+    consumer-retry:            # 1s, 2s, 4s, 8s rồi vào DLT ticketbox.booking-events.DLT
+      max-retries: 4
+      initial-interval: PT1S
+      multiplier: 2.0
+      max-interval: PT30S
+  payment:
+    max-attempts-per-booking: 5
+    min-remaining-hold: PT1M
+    vnpay:
+      version: 2.1.0
+      pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+      locale: vn
+      order-type: other
+      # tmn-code, hash-secret, return-url khai báo theo profile
+    reconciliation:
+      enabled: true
+      interval: PT5M
+      initiated-after: PT15M
+      abandon-after: PT30M
+      refund-retry-after: PT10M
+      max-refund-attempts: 5
+      batch-size: 50
+  mail:
+    from: no-reply@ticketbox.local
+    from-name: Ticketbox
+    timezone: ${app.timezone}
+  # ticket.signing-secret khai báo theo profile
 
 logging:
   pattern:

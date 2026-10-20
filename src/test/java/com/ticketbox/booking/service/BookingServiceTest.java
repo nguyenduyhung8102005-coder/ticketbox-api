@@ -198,8 +198,8 @@ class BookingServiceTest {
         when(showtimeRepository.findWithDetailsById(SHOWTIME_ID))
                 .thenReturn(Optional.of(showtime(SHOWTIME_ID, NOW.plus(Duration.ofDays(2)), ShowtimeStatus.ON_SALE)));
         when(bookingRepository.findBookedSeats(100L)).thenReturn(List.of(
-                new BookedSeatView(11L, "F", 7, SeatType.STANDARD, new BigDecimal("90000")),
-                new BookedSeatView(12L, "F", 8, SeatType.VIP, new BigDecimal("120000"))));
+                new BookedSeatView(1L, 11L, "F", 7, SeatType.STANDARD, new BigDecimal("90000"), null),
+                new BookedSeatView(2L, 12L, "F", 8, SeatType.VIP, new BigDecimal("120000"), null)));
 
         BookingResponse response = service.holdSeats(command(SEATS));
 

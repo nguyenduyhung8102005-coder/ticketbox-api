@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="|Hoàn tiền đơn ${bookingCode}|">Hoàn tiền</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                   style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+                <tr>
+                    <td style="background:#374151;color:#ffffff;padding:20px 24px;">
+                        <div style="font-size:20px;font-weight:bold;">Ticketbox</div>
+                        <div style="font-size:14px;opacity:.9;"
+                             th:text="${completed} ? 'Đã hoàn tiền' : 'Đơn đặt vé không thể hoàn tất'">Tiêu đề</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:24px;font-size:14px;line-height:1.6;">
+                        <p style="margin:0 0 12px;">Chào bạn,</p>
+
+                        <th:block th:unless="${completed}">
+                            <p style="margin:0 0 12px;">
+                                Chúng tôi rất xin lỗi: giao dịch cho đơn <strong th:text="${bookingCode}">TB...</strong>
+                                đã được thanh toán nhưng không thể giao vé.
+                            </p>
+                            <p style="margin:0 0 12px;color:#4b5563;" th:text="${reasonText}">Lý do</p>
+                            <p style="margin:0 0 12px;">
+                                Chúng tôi đã tự động gửi yêu cầu hoàn lại
+                                <strong th:text="${amount}">0 đ</strong> về tài khoản/thẻ bạn đã dùng.
+                                Bạn sẽ nhận thêm một email khi cổng thanh toán xác nhận.
+                            </p>
+                        </th:block>
+
+                        <th:block th:if="${completed}">
+                            <p style="margin:0 0 12px;">
+                                Yêu cầu hoàn <strong th:text="${amount}">0 đ</strong> cho đơn
+                                <strong th:text="${bookingCode}">TB...</strong> đã được cổng thanh toán tiếp nhận.
+                            </p>
+                            <p style="margin:0 0 12px;color:#4b5563;">
+                                Tùy ngân hàng, tiền thường về tài khoản trong 3-15 ngày làm việc.
+                            </p>
+                        </th:block>
+
+                        <p style="margin:16px 0 0;">Mong được phục vụ bạn trong lần đặt vé tới.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#f9fafb;padding:16px 24px;font-size:12px;color:#6b7280;">
+                        Email tự động từ hệ thống Ticketbox, vui lòng không trả lời.
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

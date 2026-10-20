@@ -28,6 +28,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("select b from Booking b where b.bookingCode = :code")
     Optional<Booking> findByCodeForUpdate(@Param("code") String code);
 
+    /**
+     * Khóa đơn theo id khi xử lý kết quả thanh toán (IPN, đối soát). Đây là điểm tuần tự hóa: hai IPN của hai
+     * giao dịch khác nhau cho CÙNG một đơn (khách trả tiền ở 2 tab) phải xếp hàng, giao dịch sau thấy đơn đã
+     * CONFIRMED và chuyển sang hoàn tiền.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :id")
+    Optional<Booking> findByIdForUpdate(@Param("id") Long id);
+
     @Query("select distinct b from Booking b left join fetch b.items where b.id in :ids")
     List<Booking> findAllWithItemsByIdIn(@Param("ids") Collection<Long> ids);
 
@@ -48,12 +57,21 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     /** Ghế của đơn lấy theo booking_items (vẫn đúng sau khi đơn hủy/hết hạn và ghế đã được trả). */
     @Query("""
             select new com.ticketbox.booking.repository.BookedSeatView(
-                       ss.id, s.rowLabel, s.seatNumber, s.seatType, i.price)
+                       i.id, ss.id, s.rowLabel, s.seatNumber, s.seatType, i.price, i.ticketCode)
               from BookingItem i join i.showtimeSeat ss join ss.seat s
              where i.booking.id = :bookingId
              order by s.rowLabel, s.seatNumber
             """)
     List<BookedSeatView> findBookedSeats(@Param("bookingId") Long bookingId);
+
+    /** Tra cứu vé theo mã (soát vé). */
+    @Query("""
+            select new com.ticketbox.booking.repository.TicketView(
+                       i.id, i.ticketCode, b.bookingCode, b.status, b.showtimeId, ss.id, s.rowLabel, s.seatNumber)
+              from BookingItem i join i.booking b join i.showtimeSeat ss join ss.seat s
+             where i.ticketCode = :ticketCode
+            """)
+    Optional<TicketView> findTicket(@Param("ticketCode") String ticketCode);
 
     @Query(value = """
             select new com.ticketbox.booking.repository.BookingSummaryView(

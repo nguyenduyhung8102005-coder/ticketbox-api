@@ -32,7 +32,9 @@ public final class BookingDtos {
                                    List<Long> showtimeSeatIds, String idempotencyKey) {
     }
 
-    public record BookedSeat(Long showtimeSeatId, String label, SeatType seatType, BigDecimal price) {
+    /** @param ticketCode mã vé (nội dung QR), chỉ có khi đơn đã CONFIRMED */
+    public record BookedSeat(Long showtimeSeatId, String label, SeatType seatType, BigDecimal price,
+                             String ticketCode) {
     }
 
     public record BookingResponse(
@@ -46,7 +48,8 @@ public final class BookingDtos {
             List<BookedSeat> seats,
             BigDecimal totalAmount,
             Instant expiresAt,
-            Instant createdAt) {
+            Instant createdAt,
+            Instant confirmedAt) {
     }
 
     public record SeatMapSeat(Long showtimeSeatId, String rowLabel, Integer seatNumber, String label,

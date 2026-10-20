@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
-/** Một ghế trong đơn, kèm giá chụp tại thời điểm đặt. ticket_code sinh ở Giai đoạn 3 khi đơn CONFIRMED. */
+/** Một ghế trong đơn, kèm giá chụp tại thời điểm đặt. ticket_code (nội dung QR) sinh khi đơn CONFIRMED. */
 @Getter
 @Entity
 @Table(name = "booking_items")
@@ -44,5 +44,12 @@ public class BookingItem {
         this.booking = booking;
         this.showtimeSeat = showtimeSeat;
         this.price = price;
+    }
+
+    public void issueTicket(String ticketCode) {
+        if (this.ticketCode != null) {
+            throw new IllegalStateException("Ghế " + id + " đã được phát hành vé");
+        }
+        this.ticketCode = ticketCode;
     }
 }

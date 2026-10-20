@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="|Vé của bạn - đơn ${bookingCode}|">Vé của bạn</title>
+</head>
+<!-- Email client chỉ hỗ trợ CSS inline + bảng: không dùng flex/grid hay thẻ <style> ngoài -->
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                   style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+                <tr>
+                    <td style="background:#b91c1c;color:#ffffff;padding:20px 24px;">
+                        <div style="font-size:20px;font-weight:bold;">Ticketbox</div>
+                        <div style="font-size:14px;opacity:.9;">Thanh toán thành công - vé của bạn đã sẵn sàng</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:24px;">
+                        <h1 style="margin:0 0 4px;font-size:22px;" th:text="${showTitle}">Tên phim</h1>
+                        <p style="margin:0 0 16px;color:#4b5563;font-size:14px;">
+                            Mã đơn: <strong th:text="${bookingCode}">TB0000000000</strong>
+                        </p>
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                               style="font-size:14px;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">
+                            <tr>
+                                <td style="padding:8px 0;color:#6b7280;width:120px;">Suất chiếu</td>
+                                <td style="padding:8px 0;font-weight:bold;" th:text="${startTime}">19:30</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;color:#6b7280;">Rạp</td>
+                                <td style="padding:8px 0;">
+                                    <span th:text="${venueName}">Rạp</span> - <span th:text="${auditoriumName}">Phòng</span>
+                                    <div style="color:#6b7280;font-size:13px;" th:if="${venueAddress}"
+                                         th:text="${venueAddress}">Địa chỉ</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;color:#6b7280;">Tổng tiền</td>
+                                <td style="padding:8px 0;font-weight:bold;" th:text="${totalAmount}">0 đ</td>
+                            </tr>
+                        </table>
+
+                        <p style="margin:20px 0 12px;font-size:14px;">
+                            Xuất trình mã QR của từng ghế tại cửa soát vé. Mỗi mã chỉ dùng cho một ghế.
+                        </p>
+
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                            <tr th:each="t : ${tickets}">
+                                <td style="padding:12px 0;border-top:1px dashed #d1d5db;" align="center">
+                                    <div style="font-size:18px;font-weight:bold;margin-bottom:4px;">
+                                        Ghế <span th:text="${t.seatLabel()}">F7</span>
+                                    </div>
+                                    <div style="font-size:13px;color:#6b7280;margin-bottom:8px;">
+                                        <span th:text="${t.seatType()}">STANDARD</span> ·
+                                        <span th:text="${t.price()}">90.000 đ</span>
+                                    </div>
+                                    <img th:src="|cid:${t.cid()}|" th:alt="|QR ghế ${t.seatLabel()}|"
+                                         width="200" height="200" style="display:block;border:0;" alt="QR">
+                                    <div style="font-family:monospace;font-size:11px;color:#9ca3af;margin-top:6px;word-break:break-all;"
+                                         th:text="${t.ticketCode()}">TBK1...</div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#f9fafb;padding:16px 24px;font-size:12px;color:#6b7280;">
+                        Email tự động từ hệ thống Ticketbox, vui lòng không trả lời.
+                        Không chia sẻ mã QR cho người khác: ai giữ mã sẽ vào được bằng vé của bạn.
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

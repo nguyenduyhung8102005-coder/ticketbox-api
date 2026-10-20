@@ -151,7 +151,8 @@ public class BookingService {
         Map<SeatType, BigDecimal> prices = priceMap(showtime.getId());
         List<BookedSeat> bookedSeats = seats.stream()
                 .sorted(Comparator.comparing(SeatView::rowLabel).thenComparing(SeatView::seatNumber))
-                .map(s -> new BookedSeat(s.showtimeSeatId(), s.label(), s.seatType(), priceOf(prices, s.seatType())))
+                .map(s -> new BookedSeat(s.showtimeSeatId(), s.label(), s.seatType(), priceOf(prices, s.seatType()),
+                        null))
                 .toList();
         BigDecimal total = bookedSeats.stream().map(BookedSeat::price).reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -250,7 +251,7 @@ public class BookingService {
         Showtime showtime = showtimeRepository.findWithDetailsById(booking.getShowtimeId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SHOWTIME_NOT_FOUND));
         List<BookedSeat> seats = bookingRepository.findBookedSeats(booking.getId()).stream()
-                .map(v -> new BookedSeat(v.showtimeSeatId(), v.label(), v.seatType(), v.price()))
+                .map(v -> new BookedSeat(v.showtimeSeatId(), v.label(), v.seatType(), v.price(), v.ticketCode()))
                 .toList();
         return toResponse(booking, showtime, seats);
     }
@@ -267,7 +268,8 @@ public class BookingService {
                 seats,
                 booking.getTotalAmount(),
                 booking.getExpiresAt(),
-                booking.getCreatedAt());
+                booking.getCreatedAt(),
+                booking.getConfirmedAt());
     }
 
     private Map<SeatType, BigDecimal> priceMap(Long showtimeId) {

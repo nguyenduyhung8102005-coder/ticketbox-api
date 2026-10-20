@@ -2,17 +2,10 @@ package com.ticketbox;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
 import java.util.Map;
@@ -21,23 +14,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Integration test cho toàn bộ hạ tầng Giai đoạn 0: ứng dụng khởi động được với PostgreSQL và Redis thật,
+ * Integration test cho hạ tầng: ứng dụng khởi động được với PostgreSQL, Redis, Kafka thật,
  * Flyway chạy đủ migration, và các ràng buộc quan trọng ở tầng DB hoạt động đúng.
+ * Kế thừa AbstractIntegrationTest để dùng chung context (và container) với các IT khác.
  * Cần Docker đang chạy (Testcontainers).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
-@ActiveProfiles("test")
-class InfrastructureIT {
-
-    @Autowired
-    private JdbcTemplate jdbc;
-
-    @Autowired
-    private StringRedisTemplate redis;
-
-    @Autowired
-    private TestRestTemplate http;
+class InfrastructureIT extends AbstractIntegrationTest {
 
     private long auditoriumId;
     private long showId;
@@ -58,7 +40,7 @@ class InfrastructureIT {
     void flyway_appliesAllMigrations() {
         Integer applied = jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
-        assertThat(applied).isEqualTo(4);
+        assertThat(applied).isEqualTo(5);
     }
 
     @Test
@@ -138,6 +120,27 @@ class InfrastructureIT {
                 showtimeId, seatId))
                 .isInstanceOf(DataAccessException.class)
                 .hasMessageContaining("ck_showtime_seats_state");
+    }
+
+    @Test
+    void payments_atMostOneSuccessfulPaymentPerBooking() {
+        long showtimeId = insertShowtime("2026-11-04T10:00:00Z", "2026-11-04T12:00:00Z", "ON_SALE");
+        long bookingId = insertReturningId("""
+                INSERT INTO bookings (booking_code, customer_email, showtime_id, status, total_amount, expires_at)
+                VALUES ('TBINFRA00001', 'a@test.vn', ?, 'CONFIRMED', 90000, now()) RETURNING id""", showtimeId);
+        jdbc.update("""
+                INSERT INTO payments (booking_id, provider, provider_txn_id, amount, status)
+                VALUES (?, 'VNPAY', 'TXN1', 90000, 'SUCCESS')""", bookingId);
+        // Giao dịch thứ hai cho cùng đơn có thể tồn tại (thử lại, trả 2 lần) nhưng KHÔNG được cùng là SUCCESS
+        jdbc.update("""
+                INSERT INTO payments (booking_id, provider, provider_txn_id, amount, status, refund_reason)
+                VALUES (?, 'VNPAY', 'TXN2', 90000, 'REFUND_PENDING', 'DUPLICATE_PAYMENT')""", bookingId);
+
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO payments (booking_id, provider, provider_txn_id, amount, status)
+                VALUES (?, 'VNPAY', 'TXN3', 90000, 'SUCCESS')""", bookingId))
+                .isInstanceOf(DuplicateKeyException.class)
+                .hasMessageContaining("uk_payments_booking_success");
     }
 
     @Test

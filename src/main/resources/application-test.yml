@@ -9,11 +9,17 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    mail:
+      enabled: false   # test dùng mail sender giả trong bộ nhớ, không có SMTP server
 
 logging:
   level:
     com.ticketbox: DEBUG
     org.testcontainers: INFO
+    org.apache.kafka: WARN
+    kafka: WARN
+    state.change.logger: WARN
 
 app:
   jwt:
@@ -21,3 +27,19 @@ app:
   booking:
     expiry-job:
       enabled: false   # test gọi trực tiếp BookingExpiryService để kiểm soát thời điểm chạy
+  ticket:
+    signing-secret: test-only-ticket-secret-0123456789abcdef
+  messaging:
+    outbox:
+      relay-enabled: false   # test gọi trực tiếp OutboxRelay
+    consumer-retry:          # thử lại nhanh để test DLT không phải chờ lâu
+      max-retries: 2
+      initial-interval: PT0.2S
+      max-interval: PT0.5S
+  payment:
+    vnpay:
+      tmn-code: TESTTMN1
+      hash-secret: TEST_HASH_SECRET_0123456789ABCDEF
+      api-url: http://localhost:9/vnpay-not-used-in-test   # VnPayApiClient được mock trong integration test
+    reconciliation:
+      enabled: false         # test gọi trực tiếp PaymentReconciliationService
